@@ -1,14 +1,43 @@
 from datetime import datetime
-
-import tweepy
 from tweepy.streaming import StreamListener
-from tweepy import OAuthHandler
-from tweepy import Stream
+from tweepy import OAuthHandler, Stream, API
 from config_api import *
-import json
 from pymongo import MongoClient
 import time
 import numpy as np
+import json
+import logging
+import logging.config
+import os
+
+
+def setup_logging(default_path='logging.json', default_level=logging.INFO, env_key='LOG_CFG'):
+    """Setup logging configuration
+    """
+    path = default_path
+    value = os.getenv(env_key, None)
+    if value:
+        path = value
+    if os.path.exists(path):
+        with open(path, 'rt') as f:
+            config = json.load(f)
+        logging.config.dictConfig(config)
+    else:
+        logging.basicConfig(level=default_level)
+
+
+def setup_db_connection(dbtype='mongo', port=27017, host='localhost'):
+    if dbtype == 'mongo':
+        try:
+            client = MongoClient(host, port)
+            db = client.twtdb
+        except:
+            pass
+            logger.error('cannot connect to db')
+    else:
+        print('not implemented')
+
+    return db, client
 
 
 class StatAnalyzer:
@@ -22,7 +51,17 @@ class StatAnalyzer:
 
 
 class TwitterListener(StreamListener):
-    def __init__(self, num_tweets_to_grab, stat_analyzer, window=1):
+    def __init__(self, db, client, num_tweets_to_grab, stat_analyzer, window=1, logger=None):
+        self.logger = logger or logging.getLogger('listener' + __name__)
+
+        if not db or not client:
+            self.logger.info('falling back to defaulted mongo connection')
+            self.client = MongoClient('localhost', 27017)
+            self.db = self.client.twtdb
+        else:
+            self.client = db
+            self.db = client
+
         self.counter = 0
         self.iteration = 0
         self.num_tweets_to_grab = num_tweets_to_grab
@@ -54,7 +93,7 @@ class TwitterListener(StreamListener):
                 self._reset_to_new_frame()
 
             if self.db.tweets.count() > MAX_COUNT:
-                print("Too many tweets persisted")
+                self.logger.info("Too many tweets persisted")
                 return False
         except:
             # TODO: come back to this
@@ -63,12 +102,15 @@ class TwitterListener(StreamListener):
     def _reset_to_new_frame(self):
         try:
             self.db.tweet_stats.insert({'hashtags': self.htags,
-                                        'iteration': self.iteration})
+                                        'iteration': self.iteration,
+                                        'stamp': datetime.fromtimestamp(self.start_time)})
+            self.db.tweets.insert({"iteration": self.iteration, "counter": self.counter})
+            logger.info(self.counter)
             self.iteration += 1
         except:
-            print("!!!!!!!!!!!!!!!!!")
+            self.logger.info('was not able to persist to tweet_stats collection')
         # Perform stat analysis
-        print(self.htags)
+        # self.logger.info(self.htags)
         # If anomaly is detected provide detailed logs
 
         # reset to new time/counter frame
@@ -85,16 +127,21 @@ class TwitterListener(StreamListener):
 
 
 if __name__ == "__main__":
+    setup_logging()
+    logger = logging.getLogger(__name__)
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
-    twitter_api = tweepy.API(auth)
+    twitter_api = API(auth)
 
     analyzer = StatAnalyzer()
+    db, client = setup_db_connection()
 
-    listener = TwitterListener(num_tweets_to_grab=50, stat_analyzer=analyzer)
+    listener = TwitterListener(num_tweets_to_grab=1000, db=db,
+                               client=client, stat_analyzer=analyzer,
+                               window=2, logger=logger)
     twitter_stream = Stream(auth, listener=listener)
 
     try:
         twitter_stream.filter(track='trump')
     except Exception as e:
-        print(e.__doc__)
+        logger.error(e.__doc__)

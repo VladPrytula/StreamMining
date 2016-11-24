@@ -38,7 +38,7 @@ function requestDataIteration(i) {
             // call it again after one second
             setTimeout(function(){
                 requestDataIteration(i+1)
-            }, 1000);
+            }, 5000);
         },
         cache: false
     });
@@ -51,35 +51,6 @@ $(document).ready(function() {
             defaultSeriesType: 'spline',
             events: {
                 load: requestDataIteration(1)//requestData
-            }
-        },
-        title: {
-            text: 'Twitter Frequency data'
-        },
-        xAxis: {
-            type: 'number',
-            tickPixelInterval: 150,
-            maxZoom: 20 * 1000
-        },
-        yAxis: {
-            minPadding: 0.2,
-            maxPadding: 0.2,
-            title: {
-                text: 'Value',
-                margin: 80
-            }
-        },
-        series: [{
-            name: 'Tweets Frequency',
-            data: []
-        }]
-    });
-    chart2 = new Highcharts.Chart({
-        chart: {
-            renderTo: 'data-container2',
-            defaultSeriesType: 'areaspline',
-            events: {
-                load: requestData()//requestData
             }
         },
         title: {
