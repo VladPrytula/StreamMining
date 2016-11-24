@@ -91,17 +91,20 @@ if __name__ == "__main__":
     running_mean = 0
     running_std = 0
     counter = 0
+    hashtags = {}
+    listener = TwitterListener(num_tweets_to_grab=100, hashtags=hashtags, iteration=counter)
+    twitter_stream = Stream(auth, listener=listener)
 
     while db.tweets.count() < MAX_COUNT:
-        hashtags = {}
 
-        twitter_stream = Stream(auth, TwitterListener(num_tweets_to_grab=100, hashtags=hashtags, iteration=
-        counter))
+        hashtags = {}
+        listener.iteration = counter
+        listener.htags = hashtags
 
         try:
             twitter_stream.filter(track='trump')
-            print(hashtags)
-            print(len(hashtags))
+            print(listener.htags)
+            print(len(listener.htags))
         except Exception as e:
             print(e.__doc__)
             #
