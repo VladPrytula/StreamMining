@@ -1,4 +1,4 @@
-from pymongo import MongoClient
+from pymongo import MongoClient, errors
 
 if __name__ == "__main__":
     try:
@@ -6,5 +6,5 @@ if __name__ == "__main__":
         db = client.twtdb
         statistics = db.tweet_stats
         statistics.insert({"global_tags": 1})
-    except:
-        print("failed to setup required collections")
+    except errors.ConnectionFailure as e:
+        print("failed to setup required collections: %s" %e)

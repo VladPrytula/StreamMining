@@ -3,7 +3,7 @@ from datetime import datetime
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler, Stream, API
 from config_api import *
-from pymongo import MongoClient
+from pymongo import MongoClient, errors
 from processing_utils import StatAnalyzer, TweetProcessor
 import time
 import json
@@ -12,6 +12,10 @@ import logging.config
 import os
 import sys
 import collections
+
+import argparse
+
+parser = argparse.ArgumentParser()
 
 
 def setup_logging(default_path='logging.json', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -66,8 +70,7 @@ class TwitterListener(StreamListener):
             self.client = client
             self.logger.info("db and client passed in")
 
-        self.counter = 0
-        self.iteration = 0
+        self.counter, self.iteration, self.running_mean, self.running_std = 0, 0, 0, 0
         self.num_tweets_to_grab = num_tweets_to_grab
         self.stat_analyzer = stat_analyzer
         self.start_time = int(round(time.time()))
@@ -82,49 +85,51 @@ class TwitterListener(StreamListener):
                 return False
 
             data_json = json.loads(data)
-
-            # We only want to store tweets in English (as per requirement)
-            if self.processor.check_language(data_json):
-                self._build_local_tag_distribution(data_json)
-                self._persist_tweet_data(data_json, self.htags)
-                self.counter += 1
+            self._process_tweet(data_json)
 
             if self.counter == self.num_tweets_to_grab or (int(round(time.time())) > self.start_time + self.window):
-                self._persist_frame_data()
-                self._reset_to_new_frame()
-        except:
-            # TODO: come back to this
-            logger.error("data processing error")
+                self._process_frame()
 
-    def _build_local_tag_distribution(self, data_json):
-        for tag in self.processor.extract_hashtags(data_json):
-            self.htags[tag['text']] += 1
+        except errors.PyMongoError as e:
+            # TODO: come back to this
+            self.logger.error("data processing error %s" % e)
+
+    def on_error(self, status):
+        self.logger.error(status)
+
+    def _process_tweet(self, data_json):
+        if self.processor.check_language(data_json):
+            self.processor.build_local_tag_distribution(data_json, self.htags)
+            self._persist_tweet_data(data_json, self.htags)
+            self.counter += 1
+
+    def _process_frame(self):
+        self.stat_analyzer.detect_local_anomaly(self.running_mean, self.running_std, self.htags)
+        self._persist_frame_data()
+        self._reset_to_new_frame()
 
     def _reset_to_new_frame(self):
-        logger.info(self.counter)
         self.iteration += 1
         self.start_time = int(round(time.time()))
         self.counter = 0
         self.htags.clear()
-
-    def on_error(self, status):
-        self.logger.error(status)
 
     def _persist_tweet_data(self, data_json, local_htag_distribution):
         try:
             self.db.tweets.insert(data_json)
             self._update_global_tags_distribution(local_htag_distribution)
         except:
-            self.logger.info('was not able to persist to db')
+            self.logger.info('unaable to persist tweet data')
 
     def _persist_frame_data(self):
         try:
+            logger.info(dict(self.htags))
             self.db.tweet_stats.insert({'hashtags': dict(self.htags),
                                         'iteration': self.iteration,
                                         'stamp': datetime.fromtimestamp(self.start_time)})
             self.db.tweets.insert({"iteration": self.iteration, "counter": self.counter})
         except:
-            self.logger.info('was not able to persist to db')
+            self.logger.info('unable to persist frame data')
 
     def _update_global_tags_distribution(self, local_htag_distribution):
         if local_htag_distribution:
@@ -140,6 +145,16 @@ if __name__ == "__main__":
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
     twitter_api = API(auth)
+    parser.add_argument('-w', action='append', dest='collection',
+                        default=[],
+                        help='Define a list of key words that are used for stream filtering',
+                        )
+    parser.add_argument('-l', action='append', dest='collection',
+                        default=[],
+                        help='Define a location that is used for stream filtering',
+                        )
+    parser.add_argument('--version', action='version', version='%(prog)s 0.1')
+    results = parser.parse_args()
 
     analyzer = StatAnalyzer()
     twt_db, twt_client = setup_db_connection()
@@ -153,5 +168,3 @@ if __name__ == "__main__":
         twitter_stream.filter(track='trump')
     except Exception as e:
         logger.error(e.__doc__)
-
-
