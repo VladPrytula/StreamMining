@@ -65,10 +65,7 @@ class TwitterListener(StreamListener):
         self.counter = 0
         self.iteration = 0
         self.num_tweets_to_grab = num_tweets_to_grab
-        self.client = MongoClient('localhost', 27017)
-        self.db = self.client.twtdb
         self.stat_analyzer = stat_analyzer
-
         self.start_time = int(round(time.time()))
         self.window = window
         self.htags = {}

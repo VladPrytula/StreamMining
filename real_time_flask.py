@@ -6,7 +6,7 @@ from pymongo import MongoClient
 
 app = Flask(__name__)
 
-
+# TODO: i have a different function. must merge them into one
 def _connect_mongo(host, port, username, password, db):
     if username and password:
         mongo_uri = 'mongodb://%s:%s@%s:%s/%s' % (username, password, host, port, db)
