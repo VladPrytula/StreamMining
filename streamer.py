@@ -4,13 +4,14 @@ from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler, Stream, API
 from config_api import *
 from pymongo import MongoClient
+from processing_utils import StatAnalyzer, TweetProcessor
 import time
-import numpy as np
 import json
 import logging
 import logging.config
 import os
 import sys
+import collections
 
 
 def setup_logging(default_path='logging.json', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -50,19 +51,11 @@ signal.signal(signal.SIGINT, exit_gracefully)
 signal.signal(signal.SIGTERM, exit_gracefully)
 
 
-class StatAnalyzer:
-    @staticmethod
-    def compute_average(values):
-        return np.mean(values)
-
-    @staticmethod
-    def compute_deviation(values):
-        return np.std(values)
-
-
 class TwitterListener(StreamListener):
-    def __init__(self, db, client, num_tweets_to_grab, stat_analyzer, window=1, logger=None):
+    def __init__(self, db, client, num_tweets_to_grab, stat_analyzer, window=1, logger=None, processor=None):
         self.logger = logger or logging.getLogger('listener' + __name__)
+        self.processor = processor or TweetProcessor()
+        print(self.processor)
 
         if not db or not client:
             self.logger.info('falling back to defaulted mongo connection')
@@ -71,7 +64,7 @@ class TwitterListener(StreamListener):
         else:
             self.db = db
             self.client = client
-            logger.info("db and client passed in")
+            self.logger.info("db and client passed in")
 
         self.counter = 0
         self.iteration = 0
@@ -79,60 +72,66 @@ class TwitterListener(StreamListener):
         self.stat_analyzer = stat_analyzer
         self.start_time = int(round(time.time()))
         self.window = window
-        self.htags = {}
+        self.htags = collections.defaultdict(int)
 
     def on_data(self, data):
         try:
-            data_json = json.loads(data)
-
-            # We only want to store tweets in English (as per requirement)
-            if "lang" in data_json and data_json["lang"] == "en":
-                self.db.tweets.insert(data_json)
-                twit_tags = TwitterListener.extract_hashtags(datajson=data_json)
-                for tag in twit_tags:
-                    if self.htags.get(tag['text']):
-                        self.htags[tag['text']] += 1
-                    else:
-                        self.htags[tag['text']] = 1
-
-            self.counter += 1
-
-            if self.counter == self.num_tweets_to_grab or (int(round(time.time())) > self.start_time + self.window):
-                self._reset_to_new_frame()
-
+            # we want to failfast if limit is reached
             if self.db.tweets.count() > MAX_COUNT:
                 self.logger.info("Too many tweets persisted")
                 return False
+
+            data_json = json.loads(data)
+
+            # We only want to store tweets in English (as per requirement)
+            if self.processor.check_language(data_json):
+                self._build_local_tag_distribution(data_json)
+                self._persist_tweet_data(data_json, self.htags)
+                self.counter += 1
+
+            if self.counter == self.num_tweets_to_grab or (int(round(time.time())) > self.start_time + self.window):
+                self._persist_frame_data()
+                self._reset_to_new_frame()
         except:
             # TODO: come back to this
             logger.error("data processing error")
 
+    def _build_local_tag_distribution(self, data_json):
+        for tag in self.processor.extract_hashtags(data_json):
+            self.htags[tag['text']] += 1
+
     def _reset_to_new_frame(self):
+        logger.info(self.counter)
+        self.iteration += 1
+        self.start_time = int(round(time.time()))
+        self.counter = 0
+        self.htags.clear()
+
+    def on_error(self, status):
+        self.logger.error(status)
+
+    def _persist_tweet_data(self, data_json, local_htag_distribution):
         try:
-            print("inside reset")
-            self.db.tweet_stats.insert({'hashtags': self.htags,
+            self.db.tweets.insert(data_json)
+            self._update_global_tags_distribution(local_htag_distribution)
+        except:
+            self.logger.info('was not able to persist to db')
+
+    def _persist_frame_data(self):
+        try:
+            self.db.tweet_stats.insert({'hashtags': dict(self.htags),
                                         'iteration': self.iteration,
                                         'stamp': datetime.fromtimestamp(self.start_time)})
             self.db.tweets.insert({"iteration": self.iteration, "counter": self.counter})
-            logger.info(self.counter)
-            self.iteration += 1
         except:
             self.logger.info('was not able to persist to db')
-        # Perform stat analysis
-        # self.logger.info(self.htags)
-        # If anomaly is detected provide detailed logs
 
-        # reset to new time/counter frame
-        self.start_time = int(round(time.time()))
-        self.counter = 0
-        self.htags = {}
-
-    def on_error(self, status):
-        print(status)
-
-    @staticmethod
-    def extract_hashtags(datajson):
-        return datajson['entities']['hashtags']
+    def _update_global_tags_distribution(self, local_htag_distribution):
+        if local_htag_distribution:
+            try:
+                self.db.tweet_stats.update({"global_tags": 1}, {"$inc": dict(local_htag_distribution)})
+            except:
+                self.logger.error("unable to update global tags dictionary")
 
 
 if __name__ == "__main__":
@@ -154,3 +153,5 @@ if __name__ == "__main__":
         twitter_stream.filter(track='trump')
     except Exception as e:
         logger.error(e.__doc__)
+
+
