@@ -1,3 +1,4 @@
+import signal
 from datetime import datetime
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler, Stream, API
@@ -9,6 +10,7 @@ import json
 import logging
 import logging.config
 import os
+import sys
 
 
 def setup_logging(default_path='logging.json', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -32,12 +34,20 @@ def setup_db_connection(dbtype='mongo', port=27017, host='localhost'):
             client = MongoClient(host, port)
             db = client.twtdb
         except:
-            pass
             logger.error('cannot connect to db')
     else:
-        print('not implemented')
+        logger.error('not implemented')
 
     return db, client
+
+
+def exit_gracefully(signal, frame):
+    logger.warn("Shutdown signal received! Shutting down.")
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, exit_gracefully)
+signal.signal(signal.SIGTERM, exit_gracefully)
 
 
 class StatAnalyzer:
@@ -59,8 +69,9 @@ class TwitterListener(StreamListener):
             self.client = MongoClient('localhost', 27017)
             self.db = self.client.twtdb
         else:
-            self.client = db
-            self.db = client
+            self.db = db
+            self.client = client
+            logger.info("db and client passed in")
 
         self.counter = 0
         self.iteration = 0
@@ -94,10 +105,11 @@ class TwitterListener(StreamListener):
                 return False
         except:
             # TODO: come back to this
-            pass
+            logger.error("data processing error")
 
     def _reset_to_new_frame(self):
         try:
+            print("inside reset")
             self.db.tweet_stats.insert({'hashtags': self.htags,
                                         'iteration': self.iteration,
                                         'stamp': datetime.fromtimestamp(self.start_time)})
@@ -105,7 +117,7 @@ class TwitterListener(StreamListener):
             logger.info(self.counter)
             self.iteration += 1
         except:
-            self.logger.info('was not able to persist to tweet_stats collection')
+            self.logger.info('was not able to persist to db')
         # Perform stat analysis
         # self.logger.info(self.htags)
         # If anomaly is detected provide detailed logs
@@ -131,10 +143,10 @@ if __name__ == "__main__":
     twitter_api = API(auth)
 
     analyzer = StatAnalyzer()
-    db, client = setup_db_connection()
+    twt_db, twt_client = setup_db_connection()
 
-    listener = TwitterListener(num_tweets_to_grab=1000, db=db,
-                               client=client, stat_analyzer=analyzer,
+    listener = TwitterListener(num_tweets_to_grab=1000, db=twt_db,
+                               client=twt_client, stat_analyzer=analyzer,
                                window=2, logger=logger)
     twitter_stream = Stream(auth, listener=listener)
 
