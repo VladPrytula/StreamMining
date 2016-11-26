@@ -14,6 +14,12 @@ class TestStatAnalyzer(unittest.TestCase):
     def test_detect_global_anomaly(self):
         self.assertEquals(False, True)
 
+    def test_get_global_tweet_mean(self):
+        pass
+
+    def test_get_global_tag_mean(self):
+        pass
+
 
 if __name__ == '__main__':
     unittest.main()
