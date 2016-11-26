@@ -3,15 +3,19 @@ import numpy as np
 
 class StatAnalyzer:
     @staticmethod
-    def compute_average(values):
+    def compute_first_moment(values):
         return np.mean(values)
 
     @staticmethod
-    def compute_deviation(values):
+    def compute_second_moment(values):
         return np.std(values)
 
-    def detect_local_anomaly(self, running_mean, running_std, htag_local_distribution):
-        pass
+    @staticmethod
+    def detect_local_anomaly(running_mean, running_std, htag_local_distribution):
+        current_mean = StatAnalyzer.compute_first_moment(list(htag_local_distribution.values()))
+        if not running_mean - running_std <= current_mean <= running_mean + running_std:
+            return False
+        return True
 
     def detect_global_anomaly(self, htag_local_distribution):
         pass

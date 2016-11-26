@@ -7,8 +7,3 @@ class TestStreamer(unittest.TestCase):
 
     def test_streaming_data(self):
         pass
-
-
-class TestStatAnalyzer(unittest.TestCase):
-    def test_spike(self):
-        pass
