@@ -38,8 +38,8 @@ def setup_db_connection(dbtype='mongo', port=27017, host='localhost'):
         try:
             client = MongoClient(host, port)
             db = client.twtdb
-        except:
-            logger.error('cannot connect to db')
+        except errors.ConnectionFailure as e:
+            logger.error('cannot connect to db', e)
     else:
         logger.error('not implemented')
 
@@ -59,20 +59,11 @@ class TwitterListener(StreamListener):
     def __init__(self, db, client, num_tweets_to_grab, stat_analyzer, window=1, logger=None, processor=None):
         self.logger = logger or logging.getLogger('listener' + __name__)
         self.processor = processor or TweetProcessor()
-        print(self.processor)
-
-        if not db or not client:
-            self.logger.info('falling back to defaulted mongo connection')
-            self.client = MongoClient('localhost', 27017)
-            self.db = self.client.twtdb
-        else:
-            self.db = db
-            self.client = client
-            self.logger.info("db and client passed in")
-
-        self.counter, self.iteration, self.running_mean, self.running_std = 0, 0, 0, 0
+        self.stat_analyzer = stat_analyzer or StatAnalyzer()
+        self.client = client or MongoClient('localhost', 27017)
+        self.db = db or self.client.twtdb
+        self.counter, self.iteration = 0, 0
         self.num_tweets_to_grab = num_tweets_to_grab
-        self.stat_analyzer = stat_analyzer
         self.start_time = int(round(time.time()))
         self.window = window
         self.htags = collections.defaultdict(int)
@@ -104,7 +95,8 @@ class TwitterListener(StreamListener):
             self.counter += 1
 
     def _process_frame(self):
-        self.stat_analyzer.detect_local_anomaly(self.running_mean, self.running_std, self.htags)
+        self.stat_analyzer.detect_local_anomaly(self.htags)
+        self.stat_analyzer.detect_global_anomaly(self.htags)
         self._persist_frame_data()
         self._reset_to_new_frame()
 
@@ -118,8 +110,8 @@ class TwitterListener(StreamListener):
         try:
             self.db.tweets.insert(data_json)
             self._update_global_tags_distribution(local_htag_distribution)
-        except:
-            self.logger.info('unaable to persist tweet data')
+        except errors.PyMongoError as e:
+            self.logger.info('unaable to persist tweet data', e)
 
     def _persist_frame_data(self):
         try:
@@ -128,15 +120,15 @@ class TwitterListener(StreamListener):
                                         'iteration': self.iteration,
                                         'stamp': datetime.fromtimestamp(self.start_time)})
             self.db.tweets.insert({"iteration": self.iteration, "counter": self.counter})
-        except:
-            self.logger.info('unable to persist frame data')
+        except errors.PyMongoError as e:
+            self.logger.info('unable to persist frame data', e)
 
     def _update_global_tags_distribution(self, local_htag_distribution):
         if local_htag_distribution:
             try:
                 self.db.tweet_stats.update({"global_tags": 1}, {"$inc": dict(local_htag_distribution)})
-            except:
-                self.logger.error("unable to update global tags dictionary")
+            except errors.PyMongoError as e:
+                self.logger.error("unable to update global tags dictionary", e)
 
 
 if __name__ == "__main__":
