@@ -104,11 +104,14 @@ class TwitterListener(StreamListener):
                                           'tags_count': len(self.htags),
                                           "tweets_count": self.counter})
 
-
-
     def _update_global_statistic(self):
-        current_mean =1
-        current_std =1
+        if self.iteration == 0:
+            current_mean = 1
+            current_std  = 1
+        else:
+            current_mean = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('mean', 0)
+            current_std = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('std', 0)
+
         self.persistor.update_statistics({"mean": current_mean, "std": current_std},
                                          "global_moments", "$set")
 
