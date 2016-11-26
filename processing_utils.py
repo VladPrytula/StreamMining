@@ -48,6 +48,7 @@ class StatAnalyzer:
         pass
 
     def _update_moments(self, *args):
+        # TODO: this is incorrect, I am loosing history information
         self.running_mean = args[0]
         self.running_std = args[1]
 
@@ -65,7 +66,7 @@ class TweetProcessor:
     def extract_hashtags(self, data_json):
         return data_json['entities']['hashtags']
 
-    def build_local_tag_distribution(self, data_json, htags):
+    def update_local_tag_distribution(self, data_json, htags):
         for tag in self.extract_hashtags(data_json):
             htags[tag['text']] += 1
 

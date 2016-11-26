@@ -80,7 +80,7 @@ class TwitterListener(StreamListener):
 
     def _process_tweet(self, data_json):
         if self.processor.check_language(data_json):
-            self.processor.build_local_tag_distribution(data_json, self.htags)
+            self.processor.update_local_tag_distribution(data_json, self.htags)
             self.persistor.insert_tweet(data_json)
             self._update_global_tags_distribution(self.htags)
             self.counter += 1
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     twt_listener = TwitterListener(num_tweets_to_grab=1000,
                                    persistor=twt_persistor,
                                    stat_analyzer=twt_analyzer,
-                                   window=2, max_count=MAX_COUNT,
+                                   window=3, max_count=MAX_COUNT,
                                    logger=logger)
     twitter_stream = Stream(auth, listener=twt_listener)
 
