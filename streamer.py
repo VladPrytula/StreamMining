@@ -80,15 +80,14 @@ class TwitterListener(StreamListener):
 
     def _process_tweet(self, data_json):
         if self.processor.check_language(data_json):
-            self.processor.update_local_tag_distribution(data_json, self.htags)
-            self.persistor.insert_tweet(data_json)
-            self._update_global_tags_distribution(self.htags)
+            self.processor.process_tweet(data_json, self.htags)
             self.counter += 1
 
     def _process_frame(self):
         self.stat_analyzer.detect_local_anomaly(self.htags)
         self.stat_analyzer.detect_global_anomaly(self.htags)
         self._persist_frame_data()
+        self._update_global_statistic()
         self._reset_to_new_frame()
 
     def _reset_to_new_frame(self):
@@ -105,9 +104,13 @@ class TwitterListener(StreamListener):
                                           'tags_count': len(self.htags),
                                           "tweets_count": self.counter})
 
-    def _update_global_tags_distribution(self, local_htag_distribution):
-        if local_htag_distribution:
-            self.persistor.update_statistics(dict(local_htag_distribution))
+
+
+    def _update_global_statistic(self):
+        current_mean =1
+        current_std =1
+        self.persistor.update_statistics({"mean": current_mean, "std": current_std},
+                                         "global_moments", "$set")
 
 
 if __name__ == "__main__":

@@ -54,14 +54,17 @@ class StatAnalyzer:
 
 
 class TweetProcessor:
-    def __init__(self, lang="en"):
+    def __init__(self, lang="en", persistor=None):
         self.lang = lang
+        self.persistor = persistor or TweetPersistor()
 
     def check_language(self, data_json):
         return "lang" in data_json and data_json["lang"] == self.lang
 
     def process_tweet(self, data_json, htags):
-        pass
+        self.update_local_tag_distribution(data_json, htags)
+        self.persistor.insert_tweet(data_json)
+        self.update_global_tags_distribution(htags)
 
     def extract_hashtags(self, data_json):
         return data_json['entities']['hashtags']
@@ -69,6 +72,10 @@ class TweetProcessor:
     def update_local_tag_distribution(self, data_json, htags):
         for tag in self.extract_hashtags(data_json):
             htags[tag['text']] += 1
+
+    def update_global_tags_distribution(self, local_htag_distribution):
+        if local_htag_distribution:
+            self.persistor.update_statistics(dict(local_htag_distribution), "global_tags", "$inc")
 
 
 class FrameProcessor:
@@ -93,11 +100,11 @@ class TweetPersistor:
         except errors.PyMongoError as e:
             self.logger.error("data processing error %s" % e)
 
-    def update_statistics(self, data):
+    def update_statistics(self, data, key, command):
         try:
-            self.db.tweet_stats.update({"global_tags": 1}, {"$inc": data}, upsert=True)
+            self.db.tweet_stats.update({key: 1}, {command: data}, upsert=True)
         except errors.PyMongoError as e:
-            self.logger.error("unable to update global tags dictionary", e)
+            self.logger.error("unable to update statistics", e)
 
     def get_tweets_count(self):
         return self.db.tweets.count()
