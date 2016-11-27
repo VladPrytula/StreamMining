@@ -47,7 +47,6 @@ class StatAnalyzer:
         current_mean = StatAnalyzer.compute_first_moment(list(htag_local_distribution.values()))
         current_std = StatAnalyzer.compute_second_moment(list(htag_local_distribution.values()))
         running_mean, running_std = self._get_global_tag_moments()
-        print(running_std,running_mean)
         self._update_global_statistic(running_mean, running_std)
         if not running_mean - running_std <= current_mean + current_std <= running_mean + running_std:
             self.persistor.db.tweet_stats.insert({'anomaly': dict(htag_local_distribution),
