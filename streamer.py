@@ -17,22 +17,6 @@ import argparse
 parser = argparse.ArgumentParser()
 
 
-def deprecated(func):
-    """This is a decorator which can be used to mark functions
-    as deprecated. It will result in a warning being emmitted
-    when the function is used."""
-
-    def newFunc(*args, **kwargs):
-        warnings.warn("Call to deprecated function %s." % func.__name__,
-                      category=DeprecationWarning)
-        return func(*args, **kwargs)
-
-    newFunc.__name__ = func.__name__
-    newFunc.__doc__ = func.__doc__
-    newFunc.__dict__.update(func.__dict__)
-    return newFunc
-
-
 def setup_logging(default_path='logging.json', default_level=logging.INFO, env_key='LOG_CFG'):
     """Setup logging configuration
     """
@@ -106,7 +90,6 @@ class TwitterListener(StreamListener):
             self.logger.critical(dict(self.htags))
         self.stat_analyzer.detect_global_anomaly(self.htags)
         self._persist_frame_data()
-        self._update_global_statistic()
         self._reset_to_new_frame()
 
     def _reset_to_new_frame(self):
@@ -127,21 +110,6 @@ class TwitterListener(StreamListener):
                                           'local_tags_frequency_std':
                                               StatAnalyzer.compute_second_moment(list(self.htags.values()))})
 
-    @deprecated
-    def _update_global_statistic(self):
-        if self.iteration == 0:
-            current_tag_mean = 1
-            current_tag_std = 1
-        else:
-            current_tag_mean = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('global_tag_mean', 0)
-            current_tag_std = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('global_tag_std', 0)
-
-        self.persistor.update_statistics({'global_tag_mean': current_tag_mean,
-                                          'global_tag_std': current_tag_std,
-                                          'global_tweets_mean': 'not_implemented',
-                                          'global_tweets_std': 'not_implemented'},
-                                         'global_moments', "$set")
-
 
 if __name__ == "__main__":
     setup_logging()
@@ -149,16 +117,19 @@ if __name__ == "__main__":
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
     twitter_api = API(auth)
-    parser.add_argument('-w', action='append', dest='collection',
+    parser.add_argument('--w', action='append', dest='words',
                         default=[],
                         help='Define a list of key words that are used for stream filtering',
                         )
-    parser.add_argument('-l', action='append', dest='collection',
-                        default=[],
+    parser.add_argument('--l', action='append', dest='latlong',
+                        default=[], type=int,
                         help='Define a location that is used for stream filtering',
                         )
     parser.add_argument('--version', action='version', version='%(prog)s 0.1')
-    results = parser.parse_args()
+    args = parser.parse_args()
+    stop_words = 'trump'  # args.words
+    geo_box = args.latlong
+    print(geo_box)
 
     twt_persistor = TweetPersistor()
     twt_analyzer = StatAnalyzer(twt_peristor=twt_persistor)
@@ -171,6 +142,6 @@ if __name__ == "__main__":
     twitter_stream = Stream(auth, listener=twt_listener)
 
     try:
-        twitter_stream.filter(track='trump')
+        twitter_stream.filter(track=stop_words)  # , locations=geo_box)
     except Exception as e:
         logger.error(e.__doc__)

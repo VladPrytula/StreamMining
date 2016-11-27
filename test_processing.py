@@ -5,8 +5,8 @@ from processing_utils import StatAnalyzer, TweetPersistor
 
 class TestStatAnalyzer(unittest.TestCase):
     def setUp(self):
-        self.stat_analyzer = StatAnalyzer(1, 1)
-        self.htags = {"tag1": 1, "tag2": 1.5}
+        self.stat_analyzer = StatAnalyzer()
+        self.htags = {"tag1": 1, "tag2": 1}
 
     def test_detect_local_anomaly(self):
         self.assertEquals(self.stat_analyzer.detect_local_anomaly(self.htags), True)

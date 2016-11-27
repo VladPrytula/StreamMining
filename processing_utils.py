@@ -24,9 +24,7 @@ def not_implemented(func):
 
 
 class StatAnalyzer:
-    def __init__(self, running_mean=0, running_std=0, twt_peristor=None):
-        self.running_mean = running_mean
-        self.running_std = running_std
+    def __init__(self, twt_peristor=None):
         self.persistor = twt_peristor or TweetPersistor()
 
     @staticmethod
@@ -44,13 +42,20 @@ class StatAnalyzer:
     def detect_local_anomaly(self, htag_local_distribution) -> bool:
         current_mean = StatAnalyzer.compute_first_moment(list(htag_local_distribution.values()))
         current_std = StatAnalyzer.compute_second_moment(list(htag_local_distribution.values()))
-        print(current_mean)
-        print(self.running_mean, self.running_std)
-        if not self.running_mean - self.running_std <= current_mean <= \
-                        self.running_mean + self.running_std:
+        running_mean, running_std = self._get_global_tag_moments()
+        self._update_global_statistic(running_mean, running_std)
+        if not running_mean - running_std <= current_mean+current_std <= running_mean + running_std:
             return True
         return False
 
+    def _update_global_statistic(self, running_mean, running_std):
+        self.persistor.update_statistics({'global_tag_mean': running_mean,
+                                          'global_tag_std': running_std,
+                                          'global_tweets_mean': 'not_implemented',
+                                          'global_tweets_std': 'not_implemented'},
+                                         'global_moments', "$set")
+
+    @not_implemented
     def _get_global_tweet_moments(self):
         pass
 
@@ -60,15 +65,18 @@ class StatAnalyzer:
         avg_pipe = [{'$group':
                          {'_id': None,
                           'mean': {'$avg': '$local_tags_frequency_mean'}}}]
-        global_tags_mean = self.persistor.db.tweet_stats.aggregate(pipeline=avg_pipe).get('result')[0].get('mean', 0)
+        std_pipe = [{'$group':
+                         {'_id': None,
+                          'mean': {'$avg': '$local_tags_frequency_std'}}}]
 
-        def compute_global_std():
-            list_of_std = self.persistor.db.tweet_stats.find({"local_tags_frequency_std": {"$exists": True}})
-            for doc in list_of_std:
-                print(doc.get('local_tags_frequency_std', 0))
+        def _compute_accumulated_std():
+            sum_std = self.persistor.db.tweet_stats.aggregate(pipeline=std_pipe).get('result')[0].get('mean') or 0
+            return np.sqrt(sum_std)
 
-        compute_global_std()
-        print(global_tags_mean)
+        global_tags_mean = self.persistor.db.tweet_stats.aggregate(pipeline=avg_pipe).get('result')[0].get('mean') or 0
+        global_tags_std = _compute_accumulated_std()
+
+        return global_tags_mean, global_tags_std
 
     @not_implemented
     def detect_global_anomaly(self, htag_local_distribution) -> bool:
