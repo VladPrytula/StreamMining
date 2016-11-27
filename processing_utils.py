@@ -1,6 +1,10 @@
+import datetime
 import warnings
 
 import numpy as np
+import time
+
+import pymongo
 from pymongo import MongoClient
 import logging
 
@@ -43,8 +47,11 @@ class StatAnalyzer:
         current_mean = StatAnalyzer.compute_first_moment(list(htag_local_distribution.values()))
         current_std = StatAnalyzer.compute_second_moment(list(htag_local_distribution.values()))
         running_mean, running_std = self._get_global_tag_moments()
+        print(running_std,running_mean)
         self._update_global_statistic(running_mean, running_std)
-        if not running_mean - running_std <= current_mean+current_std <= running_mean + running_std:
+        if not running_mean - running_std <= current_mean + current_std <= running_mean + running_std:
+            self.persistor.db.tweet_stats.insert({'anomaly': dict(htag_local_distribution),
+                                                  'timestamp': datetime.datetime.utcnow()})
             return True
         return False
 
@@ -70,8 +77,8 @@ class StatAnalyzer:
                           'mean': {'$avg': '$local_tags_frequency_std'}}}]
 
         def _compute_accumulated_std():
-            sum_std = self.persistor.db.tweet_stats.aggregate(pipeline=std_pipe).get('result')[0].get('mean') or 0
-            return np.sqrt(sum_std)
+            avg_std = self.persistor.db.tweet_stats.aggregate(pipeline=std_pipe).get('result')[0].get('mean') or 0
+            return np.sqrt(avg_std)
 
         global_tags_mean = self.persistor.db.tweet_stats.aggregate(pipeline=avg_pipe).get('result')[0].get('mean') or 0
         global_tags_std = _compute_accumulated_std()
@@ -84,7 +91,7 @@ class StatAnalyzer:
         # 1. The very first dummy thing to do is to compare the number of tweets
         # to the averaged historical number ot tweets
         # 2. If local anomaly detection detected the anomaly for some hashtag:
-        #   compare local occurrenc      es value to the global(if present) frequency
+        #   compare local occurrences value to the global(if present) frequency
         # avg_tweets_per_frame =
         pass
 
@@ -144,3 +151,8 @@ class TweetPersistor:
 
     def get_tweets_count(self):
         return self.db.tweets.count()
+
+    def get_latest_anomaly(self):
+        anomaly = self.db.tweet_stats.find({"anomaly": {"$exists": True}})\
+            .limit(1).sort("timestamp", pymongo.DESCENDING)
+        print(list(anomaly)[0].get('anomaly'))
