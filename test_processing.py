@@ -1,6 +1,6 @@
 import unittest
 
-from processing_utils import StatAnalyzer
+from processing_utils import StatAnalyzer, TweetPersistor
 
 
 class TestStatAnalyzer(unittest.TestCase):
@@ -18,7 +18,13 @@ class TestStatAnalyzer(unittest.TestCase):
         pass
 
     def test_get_global_tag_mean(self):
-        pass
+        # Have to mock persistor response or insert syntetic data
+        self.stat_analyzer._get_global_tag_moments()
+
+
+class TestTweetPersistor(unittest.TestCase):
+    def setUp(self):
+        self.persistor = TweetPersistor()
 
 
 if __name__ == '__main__':

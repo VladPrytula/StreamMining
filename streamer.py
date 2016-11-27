@@ -1,4 +1,5 @@
 import signal
+import warnings
 from datetime import datetime
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler, Stream, API
@@ -14,6 +15,22 @@ import collections
 import argparse
 
 parser = argparse.ArgumentParser()
+
+
+def deprecated(func):
+    """This is a decorator which can be used to mark functions
+    as deprecated. It will result in a warning being emmitted
+    when the function is used."""
+
+    def newFunc(*args, **kwargs):
+        warnings.warn("Call to deprecated function %s." % func.__name__,
+                      category=DeprecationWarning)
+        return func(*args, **kwargs)
+
+    newFunc.__name__ = func.__name__
+    newFunc.__doc__ = func.__doc__
+    newFunc.__dict__.update(func.__dict__)
+    return newFunc
 
 
 def setup_logging(default_path='logging.json', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -84,7 +101,9 @@ class TwitterListener(StreamListener):
             self.counter += 1
 
     def _process_frame(self):
-        self.stat_analyzer.detect_local_anomaly(self.htags)
+        if self.stat_analyzer.detect_local_anomaly(self.htags):
+            self.logger.critical("Anomaly detected")
+            self.logger.critical(dict(self.htags))
         self.stat_analyzer.detect_global_anomaly(self.htags)
         self._persist_frame_data()
         self._update_global_statistic()
@@ -98,22 +117,30 @@ class TwitterListener(StreamListener):
 
     def _persist_frame_data(self):
         logger.info(dict(self.htags))
-        self.persistor.insert_statistics({'hashtags': dict(self.htags),
+        self.persistor.insert_statistics({'local_tags': dict(self.htags),
                                           'iteration': self.iteration,
                                           'stamp': datetime.fromtimestamp(self.start_time),
-                                          'tags_count': len(self.htags),
-                                          "tweets_count": self.counter})
+                                          'local_tags_count': len(self.htags),
+                                          'local_tweets_count': self.counter,
+                                          'local_tags_frequency_mean':
+                                              StatAnalyzer.compute_first_moment(list(self.htags.values())),
+                                          'local_tags_frequency_std':
+                                              StatAnalyzer.compute_second_moment(list(self.htags.values()))})
 
+    @deprecated
     def _update_global_statistic(self):
         if self.iteration == 0:
-            current_mean = 1
-            current_std  = 1
+            current_tag_mean = 1
+            current_tag_std = 1
         else:
-            current_mean = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('mean', 0)
-            current_std = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('std', 0)
+            current_tag_mean = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('global_tag_mean', 0)
+            current_tag_std = self.persistor.db.tweet_stats.find_one({"global_moments": 1}).get('global_tag_std', 0)
 
-        self.persistor.update_statistics({"mean": current_mean, "std": current_std},
-                                         "global_moments", "$set")
+        self.persistor.update_statistics({'global_tag_mean': current_tag_mean,
+                                          'global_tag_std': current_tag_std,
+                                          'global_tweets_mean': 'not_implemented',
+                                          'global_tweets_std': 'not_implemented'},
+                                         'global_moments', "$set")
 
 
 if __name__ == "__main__":

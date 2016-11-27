@@ -1,8 +1,26 @@
+import warnings
+
 import numpy as np
 from pymongo import MongoClient
 import logging
 
 from pymongo import errors
+
+
+def not_implemented(func):
+    """This is a decorator which can be used to mark functions
+    as deprecated. It will result in a warning being emmitted
+    when the function is used."""
+
+    def newFunc(*args, **kwargs):
+        warnings.warn("Call to non_implemented function %s." % func.__name__,
+                      category=DeprecationWarning)
+        return func(*args, **kwargs)
+
+    newFunc.__name__ = func.__name__
+    newFunc.__doc__ = func.__doc__
+    newFunc.__dict__.update(func.__dict__)
+    return newFunc
 
 
 class StatAnalyzer:
@@ -26,31 +44,41 @@ class StatAnalyzer:
     def detect_local_anomaly(self, htag_local_distribution) -> bool:
         current_mean = StatAnalyzer.compute_first_moment(list(htag_local_distribution.values()))
         current_std = StatAnalyzer.compute_second_moment(list(htag_local_distribution.values()))
+        print(current_mean)
+        print(self.running_mean, self.running_std)
         if not self.running_mean - self.running_std <= current_mean <= \
                         self.running_mean + self.running_std:
-            self._update_moments(current_mean, current_std)
-            return False
-        return True
+            return True
+        return False
 
-    def get_global_tweet_mean(self):
+    def _get_global_tweet_moments(self):
         pass
 
-    def get_global_tag_mean(self):
-        pass
+    def _get_global_tag_moments(self):
+        """this returns tag moments over time frames over all time-line"""
+        # TODO: must be extracted to TweetPersistor
+        avg_pipe = [{'$group':
+                         {'_id': None,
+                          'mean': {'$avg': '$local_tags_frequency_mean'}}}]
+        global_tags_mean = self.persistor.db.tweet_stats.aggregate(pipeline=avg_pipe).get('result')[0].get('mean', 0)
 
+        def compute_global_std():
+            list_of_std = self.persistor.db.tweet_stats.find({"local_tags_frequency_std": {"$exists": True}})
+            for doc in list_of_std:
+                print(doc.get('local_tags_frequency_std', 0))
+
+        compute_global_std()
+        print(global_tags_mean)
+
+    @not_implemented
     def detect_global_anomaly(self, htag_local_distribution) -> bool:
         # I need a reference to db here in order to be able to access reference data
         # 1. The very first dummy thing to do is to compare the number of tweets
         # to the averaged historical number ot tweets
         # 2. If local anomaly detection detected the anomaly for some hashtag:
-        #   compare local occurrences value to the global(if present) frequency
+        #   compare local occurrenc      es value to the global(if present) frequency
         # avg_tweets_per_frame =
         pass
-
-    def _update_moments(self, *args):
-        # TODO: this is incorrect, I am loosing history information
-        self.running_mean = args[0]
-        self.running_std = args[1]
 
 
 class TweetProcessor:
