@@ -52,11 +52,11 @@ if __name__ == "__main__":
                         )
     parser.add_argument('--dbport', dest='dbport',
                         default=27017, type=int,
-                        help='Define a location that is used for stream filtering: --l lat1 long1 lat2 long2',
+                        help='Define a port number where mongoDB is running: --dbport 27017',
                         )
     parser.add_argument('--dbhost', dest='dbhost',
                         default='localhost', type=str,
-                        help='Define a location that is used for stream filtering: --l lat1 long1 lat2 long2',
+                        help='Define a host where mongoDb is running: --dbhost localhost',
                         )
     parser.add_argument('--twt_per_frame', dest='twt_per_frame',
                         default=500, type=int,
