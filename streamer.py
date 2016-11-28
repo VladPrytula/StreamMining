@@ -119,11 +119,11 @@ if __name__ == "__main__":
     twitter_api = API(auth)
     parser.add_argument('--w', dest='words', nargs='*',
                         default='python',
-                        help='Define a list of key words that are used for stream filtering',
+                        help='Define a list of key words that are used for stream filtering: --w word1 word2',
                         )
     parser.add_argument('--l', dest='latlong', nargs='*',
                         default=[5.0770049095, 47.2982950435, 15.0403900146, 54.9039819757], type=int,
-                        help='Define a location that is used for stream filtering',
+                        help='Define a location that is used for stream filtering: --l lat1 long1 lat2 long2',
                         )
     parser.add_argument('--version', action='version', version='%(prog)s 0.1')
     args = parser.parse_args()

@@ -12,7 +12,15 @@ class TestStatAnalyzer(unittest.TestCase):
     @mock.patch('processing_utils.StatAnalyzer._get_global_tag_moments', return_value=(1, 1))
     @mock.patch('processing_utils.StatAnalyzer._update_global_statistic', return_value=True)
     def test_detect_local_anomaly(self, _get_global_tag_moments, _update_global_statistic):
+        self.htags = {"tag1": 1, "tag2": 1.5}
         self.assertEquals(self.stat_analyzer.detect_local_anomaly(self.htags), False)
+
+        self.htags = {"tag1": 1, "tag2": 10}
+        self.assertEquals(self.stat_analyzer.detect_local_anomaly(self.htags), True)
+
+        self.htags = {"tag1": 1, "tag2": 1.5, "tag2": 0.5, "tag2": 1.2}
+        self.assertEquals(self.stat_analyzer.detect_local_anomaly(self.htags), False)
+
 
     def test_detect_global_anomaly(self):
         pass

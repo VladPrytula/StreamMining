@@ -160,4 +160,4 @@ class TweetPersistor:
     def get_latest_anomaly(self):
         anomaly = self.db.tweet_stats.find({"anomaly": {"$exists": True}}) \
             .limit(1).sort("timestamp", pymongo.DESCENDING)
-        print(list(anomaly)[0].get('anomaly'))
+        return list(anomaly)[0].get('anomaly')
