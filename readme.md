@@ -43,5 +43,6 @@ _Console utility:_
 _Front end:_ 
 
 Start real_time_flask.py (MondoDB server must be running). This will start tiny flask server with two active endpoints:
+
 1. Live frequency data: /live-iteration, shows dymaic plot of number ot tweets per frame
 2. Latest anomaly: /latest-anomaly, shows unformatted frequency distribution of tags for the last frame that was detected as anomalous
