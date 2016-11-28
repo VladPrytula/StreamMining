@@ -117,19 +117,25 @@ if __name__ == "__main__":
     auth = OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
     twitter_api = API(auth)
-    parser.add_argument('--w', action='append', dest='words',
-                        default=[],
+    parser.add_argument('--w', dest='words', nargs='*',
+                        default='python',
                         help='Define a list of key words that are used for stream filtering',
                         )
-    parser.add_argument('--l', action='append', dest='latlong',
-                        default=[], type=int,
+    parser.add_argument('--l', dest='latlong', nargs='*',
+                        default=[5.0770049095, 47.2982950435, 15.0403900146, 54.9039819757], type=int,
                         help='Define a location that is used for stream filtering',
                         )
     parser.add_argument('--version', action='version', version='%(prog)s 0.1')
     args = parser.parse_args()
-    stop_words = 'trump'  # args.words
-    geo_box = args.latlong
-    print(geo_box)
+
+    stop_words = args.words
+    if len(args.latlong) == 4:
+        geo_box = args.latlong
+    else:
+        print(
+            """Geo Box must be defined by two point in the form: --l lat1 long1 lat2 long2.
+            Falling back to default version of Geo Box [5.0770049095, 47.2982950435, 15.0403900146, 54.9039819757]""")
+        geo_box = [5.0770049095, 47.2982950435, 15.0403900146, 54.9039819757]
 
     twt_persistor = TweetPersistor()
     twt_analyzer = StatAnalyzer(twt_peristor=twt_persistor)
@@ -142,6 +148,6 @@ if __name__ == "__main__":
     twitter_stream = Stream(auth, listener=twt_listener)
 
     try:
-        twitter_stream.filter(track=stop_words)  # , locations=geo_box)
+        twitter_stream.filter(track=stop_words, locations=geo_box)
     except Exception as e:
         logger.error(e.__doc__)

@@ -76,13 +76,19 @@ class StatAnalyzer:
                           'mean': {'$avg': '$local_tags_frequency_std'}}}]
 
         def _compute_accumulated_std():
-            avg_std = self.persistor.db.tweet_stats.aggregate(pipeline=std_pipe).get('result')[0].get('mean') or 0
+            try:
+                avg_std = self.persistor.db.tweet_stats.aggregate(pipeline=std_pipe).get('result')[0].get('mean') or 0
+            except AttributeError as e:
+                avg_std = 0
             return np.sqrt(avg_std)
 
-        global_tags_mean = self.persistor.db.tweet_stats.aggregate(pipeline=avg_pipe).get('result')[0].get('mean') or 0
-        global_tags_std = _compute_accumulated_std()
+        try:
+            global_tags_mean = self.persistor.db.tweet_stats.aggregate(pipeline=avg_pipe).get('result')[0].get(
+                'mean') or 0
+        except AttributeError as e:
+            global_tags_mean = 0
 
-        return global_tags_mean, global_tags_std
+        return global_tags_mean, _compute_accumulated_std()
 
     @not_implemented
     def detect_global_anomaly(self, htag_local_distribution) -> bool:
@@ -152,6 +158,6 @@ class TweetPersistor:
         return self.db.tweets.count()
 
     def get_latest_anomaly(self):
-        anomaly = self.db.tweet_stats.find({"anomaly": {"$exists": True}})\
+        anomaly = self.db.tweet_stats.find({"anomaly": {"$exists": True}}) \
             .limit(1).sort("timestamp", pymongo.DESCENDING)
         print(list(anomaly)[0].get('anomaly'))
