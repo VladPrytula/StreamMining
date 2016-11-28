@@ -13,7 +13,7 @@ from pymongo import errors
 
 def not_implemented(func):
     """This is a decorator which can be used to mark functions
-    as deprecated. It will result in a warning being emmitted
+    as not yet implemented. It will result in a warning being emmitted
     when the function is used."""
 
     def newFunc(*args, **kwargs):
@@ -28,6 +28,12 @@ def not_implemented(func):
 
 
 class StatAnalyzer:
+    """Used for stat analysis and anomaly detection of the tweetter stream.
+    Operates on two scales:
+        1. local stat analysis per time frame
+        2. global analysis over the accumulated stream data.
+    """
+
     def __init__(self, twt_peristor=None):
         self.persistor = twt_peristor or TweetPersistor()
 
@@ -44,10 +50,19 @@ class StatAnalyzer:
         return 0
 
     def detect_local_anomaly(self, htag_local_distribution) -> bool:
+        """ Performs basic anonmaly detection by comapring of the firist moment for a current iteration
+        against the global accumulated statistic
+
+        Args:
+            htag_local_distribution: histogram of tag specific to the current time frame
+
+        Returns:
+            True if anomaly is detected
+        """
         current_mean = StatAnalyzer.compute_first_moment(list(htag_local_distribution.values()))
         current_std = StatAnalyzer.compute_second_moment(list(htag_local_distribution.values()))
         running_mean, running_std = self._get_global_tag_moments()
-        self._update_global_statistic(running_mean, running_std)
+        self._update_global_statistic(running_mean, running_std)  # TODO: this must be extracted from this call
         if not running_mean - running_std <= current_mean + current_std <= running_mean + running_std:
             self.persistor.db.tweet_stats.insert({'anomaly': dict(htag_local_distribution),
                                                   'timestamp': datetime.datetime.utcnow()})
@@ -65,9 +80,12 @@ class StatAnalyzer:
     def _get_global_tweet_moments(self):
         pass
 
-    def _get_global_tag_moments(self):
-        """this returns tag moments over time frames over all time-line"""
-        # TODO: must be extracted to TweetPersistor
+    def _get_global_tag_moments(self) -> (float, float):
+        """ Returns global mean and std of tag frequency over all accumulated history
+
+        Returns:
+            (float, float) that represents first and second global moments
+        """
         avg_pipe = [{'$group':
                          {'_id': None,
                           'mean': {'$avg': '$local_tags_frequency_mean'}}}]
@@ -102,6 +120,12 @@ class StatAnalyzer:
 
 
 class TweetProcessor:
+    """Abstracts processing of a single tweet such as:
+        1. tags extraction
+        2. update of local tweet statistics
+        3. update of global tweet statistics
+    """
+
     def __init__(self, lang="en", persistor=None):
         self.lang = lang
         self.persistor = persistor or TweetPersistor()
@@ -110,6 +134,16 @@ class TweetProcessor:
         return "lang" in data_json and data_json["lang"] == self.lang
 
     def process_tweet(self, data_json, htags):
+        """ Basic tweet processing is done. Namely:
+            1. tags extracted and used to update tag distribution for the current frame
+            2. For historical reasons and potential off-line analysis all tweet is stored in db
+            3. A global dictionary of tags distribution is updated.
+            Due to the fact that number of tags grow almost linearly, global dictionary is stored in db
+
+            Args:
+                data_json: raw json with tweet data
+                htags: reference to local to frame tag dictionary. This is NOT immutable. # TODO: might need to change
+            """
         self.update_local_tag_distribution(data_json, htags)
         self.persistor.insert_tweet(data_json)
         self.update_global_tags_distribution(htags)
@@ -131,9 +165,11 @@ class FrameProcessor:
 
 
 class TweetPersistor:
-    def __init__(self, client=None, db=None):
+    """DB access abstraction"""
+
+    def __init__(self, client=None, db=None, host='localhost', port=27017):
         self.logger = logging.getLogger('persistor' + __name__)
-        self.client = client or MongoClient('localhost', 27017)
+        self.client = client or MongoClient(host, port)
         self.db = db or self.client.twtdb
 
     def insert_tweet(self, data):
