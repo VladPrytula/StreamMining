@@ -7,6 +7,12 @@
 * Install required dependencies using requirements.txt that can be find in the root
 * pip3 install -r requirements.txt
 
+### Overview: ###
+Application consists of two decoupled components:
+1. console utility that recieves tweet stream, performs anomaly analysis and stores data to db
+2. flask tiny servers that is used to tack tags frequency distribution in real time and to recieve latest anomaly.
+
+
 ### Approach: ###
 1. Utility connects to Twitter using Streaming API via Tweepy
 2. Streaming data is received in chunks bounded by:
@@ -27,17 +33,17 @@ after each time frame
 _Console utility:_
 * run streamer.py (MongoDB server must be running)
 * --w. This defines a list of key words that are used for stream filtering.
-** Example: python streamer.py --w python mongodb
+**Example:** python streamer.py --w python mongodb
 * --l. Define a location that is used for stream filtering. Defaulted to Germany = [5.0770049095, 47.2982950435, 15.0403900146, 54.9039819757]
-** Example: python streamer.py --l 1 1 2 2
+**Example:** python streamer.py --l 1 1 2 2
 * --dbport. Used to define a port number where mongoDB is running
-** Example: python streamer.py --dbport 27017
+**Example:** python streamer.py --dbport 27017
 * --dbhost. Used to define a host number where mongoDB is running
-** Example: python streamer.py --dbport localhost  
+**Example:** python streamer.py --dbport localhost  
 * --twt_per_frame. Limits the max amount of tweets that can be recieved per frame
-** Example: python --twt_per_frame 500
+**Example:** python --twt_per_frame 500
 * --flength. Lenght of window frame in seconds.
-** Example: python --flength 3
+**Example:** python --flength 3
 
 
 _Front end:_ 
