@@ -31,6 +31,8 @@ after each time frame
 ### Manual: ###
 
 _Console utility:_
+* define maximum amount of tweets to be mined in config_api.py by setting MAX_COUNT.
+* set up working access_token,access_token_secret,consumer_key,consumer_secret in config_api.py
 * run streamer.py (MongoDB server must be running)
 * --w. This defines a list of key words that are used for stream filtering.
 **Example:** python streamer.py --w python mongodb
