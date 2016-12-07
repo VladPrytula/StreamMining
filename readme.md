@@ -1,4 +1,4 @@
-### Install instructions: ### 
+### Install instructions:
 * Install mongoDB locally.
 * While remote mongodb connections and custom ports are supported through the arguments (see below), for sake of simplicity, please run mongod on default port, which is 27017 and locally. For mongodb installation instructions please refer to https://docs.mongodb.com/v3.2/installation/
 * Please do not set up a password, since it is not currently supported
@@ -7,13 +7,13 @@
 * Install required dependencies using requirements.txt that can be find in the root
 * pip3 install -r requirements.txt
 
-### Overview: ###
+### Overview:
 Application consists of two decoupled components:
 1. console utility that recieves tweet stream, performs anomaly analysis and stores data to db
 2. flask tiny servers that is used to tack tags frequency distribution in real time and to recieve latest anomaly.
 
 
-### Approach: ###
+### Approach:
 1. Utility connects to Twitter using Streaming API via Tweepy
 2. Streaming data is received in chunks bounded by:
  1. either time frame.
@@ -28,7 +28,7 @@ after each time frame
  3. not_implemented: one simple addition would be use globally accumulated tags dictionary to exclude tags tha appear with high mass but not in every frame
     
     
-### Manual: ###
+### Manual: 
 
 _Console utility:_
 * define maximum amount of tweets to be mined in config_api.py by setting MAX_COUNT.
